@@ -2,17 +2,14 @@
 from __future__ import unicode_literals
 from flask import Flask, render_template,request
 import requests
+import urlparse
 import json
 import subprocess
-import urlparse
 import os
 import sqlite3,binascii
-import urllib
 import sys
 import time
-import thread
-from collections import OrderedDict
-
+from do.question import Question
 reload(sys)
 sys.setdefaultencoding('utf-8')
 #import future
@@ -20,10 +17,12 @@ app = Flask(__name__)
 count = 0
 dic = {}
 command_history= {}
-lastMessage = ""
+lastMessage = []
 wait_time = 60  # amount of time in seconds to wait before reshowing message - used if repeat messages are passed.
 wait_time_command = 1
 say = "say"
+q = Question()
+current_question = Question()
 @app.route('/' , methods=['GET', 'POST'] )
 def index():
     if request.method  =='POST':
@@ -58,37 +57,19 @@ def trim(message):
 
 def message_do(message, app_user):
     repeated = False
-    print "message before str:" + message
     msg = str(message)
-    print msg
     banned_words = ["rm","shutdown","restart","sudo","su ", "vi", "vim", "nano", "emacs"]
     message = ' '.join([w for w in msg.split() if w not in banned_words])
+    msg_len = len(message)
     if message[0] == '~':
         print "IGNORING"
         return
-    if message == 'hello':
-        msg = "hi there!"
-    elif len(message) == 1 and message[0].lower() == 'r':
-        #repeat last message by pulling it from the dic
-        print "Saying last message" + lastMessage
-        commandNoRepeat("say", lastMessage)
-        return
-    elif len(message) < 3  and len(message) > 0:
-        if message[0].lower() == "q":
-            command("say" ,"What is your name?")
-    elif "emoticon" in message:
-        try:
-            char = message.index(' ')
+    if '!q' in message.lower()or "!start" in message.lower():
 
-            msg = get_emoticon(message[(char+1):])
-            print "MESSGE is : " + msg
-            #msg = subprocess.Popen("echo %s"% msg, shell=True, stdout=subprocess.PIPE).stdout.read()
-            msg = msg.replace('\n','')
-        except ValueError:
-            #print "no emoticon!"
-            msg = "no emoticon"
+        questions = q.loadAllQuestions(None)
+        print "questions are " + str(questions)
+        msg = questions[0].text
     elif "#" in message:
-
         if isRepeat(message,dic,wait_time):
             print "repeated "
             repeated = True
@@ -117,6 +98,19 @@ def message_do(message, app_user):
             #thread.start_new_thread(threadCommand, (message, "echo") )
             msg = subprocess.Popen("echo $(%s)"%message[(char+1):], shell=True, stdout=subprocess.PIPE).stdout.read()
 
+    elif msg_len < 3 and msg_len > 0:
+        if message[0].lower() == 'r':
+            if msg_len > 1 :
+                if message[1].lower() =='q':
+                    commandNoRepeat("say", 'I am sorry but I did not understand. Could you repeat that?')
+                    return
+            #repeat last message by pulling it from the dic
+            print "Saying last message" + str(lastMessage[-1])
+            commandNoRepeat("say", str(lastMessage[-1]))
+            return
+        if message[0].lower() == "q":
+            #current_question = question.next
+            command("say" ,"question.text")
     print "MESSAGE:" + msg
     if app_user is None:
         send_message_to_SLACK(msg)
@@ -134,14 +128,14 @@ def command(cmd,message):
     commandNoRepeat(cmd, message)
     return
 def logMessage(message):
-    lastMessage = message
+    #lastMessage = message
     dic[message] = float(time.time())
-    print "logmessage last message is:" + lastMessage
 
 def commandNoRepeat(cmd, message):
     logMessage(message)
     subprocess.Popen(cmd+" \"%s\""%message, shell=True, stdout=subprocess.PIPE).stdout.read()
-    lastMessage = message
+    print "LAST MESSAGE ADDING:" + message
+    lastMessage.append(message)
     return
 
 

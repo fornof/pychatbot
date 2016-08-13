@@ -8,8 +8,9 @@ conn = sqlite3.connect('data/sqlite_file.db')
 
 def main():
     #parseQuestions(sys.argv[1])
-    q = Question()
-    q.loadAllQuestions(None)
+    #q = Question()
+    #questions = q.loadAllQuestions(None)
+    #print "questions are " + str(questions)
 
 def parseQuestions(file):
     content =""
