@@ -1,3 +1,4 @@
+ # coding=utf-8
 from __future__ import unicode_literals
 from flask import Flask, render_template,request
 import requests
@@ -10,24 +11,30 @@ import urllib
 import sys
 import time
 import thread
+from collections import OrderedDict
+
 reload(sys)
 sys.setdefaultencoding('utf-8')
 #import future
 app = Flask(__name__)
 count = 0
 dic = {}
+command_history= {}
+lastMessage = ""
 wait_time = 60  # amount of time in seconds to wait before reshowing message - used if repeat messages are passed.
+wait_time_command = 1
+say = "say"
 @app.route('/' , methods=['GET', 'POST'] )
 def index():
     if request.method  =='POST':
-        print "printing JSON"
+        #print "printing JSON"
         data = request.get_json()
         if data is None :
             data = request.get_data();
             #result = data.split('&')
             result = urlparse.parse_qs(data)
-            text = str(result['text'])[3:-2] #remove first char which is !
-            print "RESULT FROM SLACK:" + text
+            text = result['text'][0] #remove first char which is !
+            print "RESULT FROM SLACK:" + str(text)
             message_do(text, None )
         else:
             message =  data[u'messages'][0][u'text']
@@ -36,17 +43,39 @@ def index():
             message_do(message,app_user)
         #POST /v1/appusers/{smoochId|userId}/conversation/messages
         #appUser
-        print "data userid is "
+        #print "data userid is "
         return "Hello world !"
 
     return render_template('index.html')
     #return 'Hello World'
+
+# input message like #hello or hello , this trims that first char if special, and returns the message.
+def trim(message):
+    if"#" == message[0] or "!" == message[0]:
+        return message[1:]
+    else:
+        return message
+
 def message_do(message, app_user):
-    msg = message
+    repeated = False
+    print "message before str:" + message
+    msg = str(message)
+    print msg
     banned_words = ["rm","shutdown","restart","sudo","su ", "vi", "vim", "nano", "emacs"]
     message = ' '.join([w for w in msg.split() if w not in banned_words])
+    if message[0] == '~':
+        print "IGNORING"
+        return
     if message == 'hello':
         msg = "hi there!"
+    elif len(message) == 1 and message[0].lower() == 'r':
+        #repeat last message by pulling it from the dic
+        print "Saying last message" + lastMessage
+        commandNoRepeat("say", lastMessage)
+        return
+    elif len(message) < 3  and len(message) > 0:
+        if message[0].lower() == "q":
+            command("say" ,"What is your name?")
     elif "emoticon" in message:
         try:
             char = message.index(' ')
@@ -59,13 +88,23 @@ def message_do(message, app_user):
             #print "no emoticon!"
             msg = "no emoticon"
     elif "#" in message:
-        if is_repeat(message):
-            print "repeated " +count + "times: "+ message
+
+        if isRepeat(message,dic,wait_time):
+            print "repeated "
+            repeated = True
             return
+
         char = message.index('#')
-        print message.replace("'","\\'")
-        thread.start_new_thread(threadCommand, message, "say" )
-        #subprocess.Popen("say \"%s\""%message[(char+1):], shell=True, stdout=subprocess.PIPE).stdout.read()
+        message= message.replace("'","\'")
+        message = str(message[(char+1):])
+        #if "#" in message:
+        #    #if ## , change voice to Bruce, use the next index
+        #    message = message[(char+1):]
+        #    print "using 2 #:, should be no # ::" + message
+        #    commandNoRepeat("say -v Agnes", message)
+        #else:
+            #thread.start_new_thread(threadCommand, (message, "say") )
+        command("say", message)
     elif "/" in message:
         if "rm" in message:
             msg = "ooopsies!"
@@ -74,8 +113,9 @@ def message_do(message, app_user):
         else:
             char = message.index('/')
             #msg= os.system(message[char:])
-            thread.start_new_thread(threadCommand, message, "echo" )
-            #msg = subprocess.Popen("echo $(%s)"%message[(char+1):], shell=True, stdout=subprocess.PIPE).stdout.read()
+            message = message[(char+1):]
+            #thread.start_new_thread(threadCommand, (message, "echo") )
+            msg = subprocess.Popen("echo $(%s)"%message[(char+1):], shell=True, stdout=subprocess.PIPE).stdout.read()
 
     print "MESSAGE:" + msg
     if app_user is None:
@@ -85,28 +125,64 @@ def message_do(message, app_user):
         #subprocess.Popen("python apptalk.py fb %s '%s'"% (app_user,msg), shell=True, stdout=subprocess.PIPE).stdout.read()
         send_message_to_FB(msg,app_user)
     return
+def command(cmd,message):
 
-def threadCommand(message,cmd):
-    subprocess.Popen("cmd"+" \"%s\""%message[(char+1):], shell=True, stdout=subprocess.PIPE).stdout.read()
+    if isRepeat(message,dic,wait_time):
+        print "repeated "
+        logMessage(message)
+        return
+    commandNoRepeat(cmd, message)
+    return
+def logMessage(message):
+    lastMessage = message
+    dic[message] = float(time.time())
+    print "logmessage last message is:" + lastMessage
+
+def commandNoRepeat(cmd, message):
+    logMessage(message)
+    subprocess.Popen(cmd+" \"%s\""%message, shell=True, stdout=subprocess.PIPE).stdout.read()
+    lastMessage = message
     return
 
 
-def isRepeat(message):
-     try:
-         prev_time = dic[message]
-     except KeyError:
-         dic[message] = time.gmtime()
-         return False
-    cur_time =time.gmtime(time.time()-wait_time)
-    if prev_time < cur_time:
-        dic[message] = time.gmtime()
-        return True
+def isRepeat(message,history_dic,wait_time):
+    message = trim(message)
+    #print "about to isrepeat"
+    print "dic is:" + str(history_dic) + " message is :" + message
+    prev_time = history_dic.get(message,None)
+    if prev_time is None:
+        print "IS NONE"
+        #dic[message] = float(time.time())
+        return False
+    else:
 
+        cur_time =float(time.time())
+        print "curtime is : "+ str(time.time())
+        print "prev time is : " + str(prev_time)
+        print "dic is :" +str(history_dic)
+        if  cur_time-prev_time < wait_time:
+            print "curtime is less than prev time:" + str(cur_time)
+            #dic[message] = float(time.time())
+            repeated = True
+            return True
+        else:
+            print " curtime is not less than prev time, FALSE"
+            #dic[message] = float(time.time())
     return False
 
 
 def send_to_email(message, subject,to_mail):
     pass
+
+
+def send_message_to_SLACK(message):
+    headers =  {'content-type': 'application/json'}
+    payload = '{"text":"%s"}'% str("~"+trim(message))
+    print "PAYLOAD:" + payload
+    url = 'https://hooks.slack.com/services/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'
+    r = requests.post(url = url, data = payload, headers= headers)
+    print r.status_code
+    return
 
 def send_message_to_FB(message, app_user):
     #print "APPuser:" + app_user
@@ -114,7 +190,7 @@ def send_message_to_FB(message, app_user):
     payload = '{"text": "%s", "role": "appMaker"}'
     print "PAYLOAD IS:" + str(payload%message).replace('\n', ',')
     url = 'https://api.smooch.io/v1/appusers/'+ app_user + '/conversation/messages'
-    r = requests.post(url = url, data = str(payload%message).replace('\n', ','), headers= headers)
+    r = requests.post(url = url, data = str(payload%str("~"+message)).replace('\n', ','), headers= headers)
     print r.status_code
 
 def encoded_dict(in_dict):
