@@ -1,0 +1,18 @@
+import sqlite3
+class Question():
+self.id= '' 
+self.text= '' 
+self.response_positive= '' 
+self.response_negative= '' 
+self.response_middle= '' 
+self.response_answer= '' 
+self.type= '' 
+self.gender= '' 
+self.next_positive= '' 
+self.next_negative= '' 
+self.next_middle= '' 
+def __init__(self):
+        	pass
+
+def parseQuestion
+        passeroonie

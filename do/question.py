@@ -1,31 +1,31 @@
 import sqlite3
 class Question():
-    conn = ""
+    dic = {}
+    id = 0
+    text = ''
+    response_positive =''
+    response_negative =''
+    response_middle = ''
+    response_answer=''
+    type = ''
+    gender= ''
+    next_positive = ''
+    next_negative = ''
+    next_middle = ''
     def __init__(self):
-        #store all the variables from the database into a container so I can call later.
-        self.conn = sqlite3.connect('data/sqlite_file.db')
-        self.dic = {}
-        self.id = 0
-        self.text = ''
-        self.response_positive =''
-        self.response_negative =''
-        self.response_middle = ''
-        self.response_answer=''
-        self.type = ''
-        self.gender= ''
-        self.next_positive = ''
-        self.next_negative = ''
-        self.next_middle = ''
+        print "Added question!"
     def loadSingleQuestion(self ):
         pass
     def loadAllQuestions(self, gender):
-        c = self.conn.cursor()
+        conn  = sqlite3.connect('data/sqlite_file.db')
+        c = conn.cursor()
         where = ''
         result = []
         questions = []
         if gender =='M':
-            where = 'WHERE question_gender = M'
-        c.execute('SELECT * FROM question ' + where)
+            where = 'WHERE question_gender = M '
+        where = 'WHERE question_gender != \'F\' and question_type != \'SERIOUS\' '
+        c.execute('SELECT * FROM question ' + where + 'ORDER BY question_id desc')
         dictionary = c.fetchall()
         names = [description[0] for description in c.description]
         for j in range(0, len(dictionary)):
@@ -38,11 +38,30 @@ class Question():
             question.parseRowtoQuestion(row)
             questions.append(question)
 
-        self.conn.commit()
-        self.conn.close()
+        conn.commit()
+        #conn.close()
         return questions
 
     # row must have a dictionary key:value pair for each column
+    def createQuestion(text, rp, rn, rm, ra, types, gender):
+        if text is None :
+            return
+        if rp is None:
+            rp = "Oh okay"
+        if rn is None:
+            rn = "That's an interesting response"
+        if ra is None:
+            ra = "I like your question so much I will let Robert answer it"
+        if types is None:
+            types = "GENERAL"
+        if gender is None:
+            gender = "N"
+        conn  = sqlite3.connect('data/sqlite_file.db')
+        c = conn.cursor()
+        var = (text,rp,rn,rm,ra,types,gender)
+        questions = (len(var)*',?')[1:]
+        c.execute("INSERT OR REPLACE INTO question VALUES (%s)"%questions , var)
+    
     def parseRowtoQuestion(self, row):
         print row
         self.id= row[u'question_id']
@@ -50,7 +69,7 @@ class Question():
         self.response_positive= row[u'question_response_positive']
         self.response_negative= row[u'question_response_negative']
         self.response_middle= row[u'question_response_middle']
-        self.response_answe= row[u'question_response_answer']
+        self.response_answer= row[u'question_response_answer']
         self.type= row[u'question_type']
         self.gender= row[u'question_gender']
         self.next_positive= row[u'question_next_positive']

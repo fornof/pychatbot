@@ -1,0 +1,13 @@
+import sqlite3
+class Gr_Questions():
+self.id= '' 
+self.begin= '' 
+self.end= '' 
+self.all= '' 
+self.none= '' 
+self.single= '' 
+def __init__(self):
+        	pass
+
+def parseGr_Questions
+        passeroonie

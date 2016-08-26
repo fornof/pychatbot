@@ -1,0 +1,10 @@
+import sqlite3
+class Action():
+self.id= '' 
+self.begin= '' 
+self.end= '' 
+def __init__(self):
+        	pass
+
+def parseAction
+        passeroonie
