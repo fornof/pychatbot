@@ -12,12 +12,13 @@ import time
 from do.question import Question
 from do.group_question import GroupQuestion
 from do.action import Action
-
+from do.settings import Settings
+from werkzeug.contrib.fixers import ProxyFix
 reload(sys)
 sys.setdefaultencoding('utf-8')
 #import future
 app = Flask(__name__)
-count = 0
+count = 0 # comment out .
 dic = {}
 command_history= {}
 lastMessage = []
@@ -32,16 +33,17 @@ current_question = Question()
 current_group = GroupQuestion()
 current_action = Action()
 name = "Awesome person"
-mode = "GAME"
+mode = "CHAT"
 introduction = "Hello there! I am Mr. Mac the talking blue Jay Bee ell speaker.,,, I want to play an icebreaker trivia game with you.,,, If you want to play, please continue to hold onto my speaker.,,,"
-introduction2 = "If a question is too difficult for you, or you would prefer to not answer,,, say the keyphrases, PASS QUESTION, or NEXT QUESTION ."
-introduction3 = "are you ready to play this fantastic icebreaker trivia game?"
+introduction2 = "I really like people who use apple products. They are cool."
+introduction3 = "Anyways, Would you like me to ask you some questions?"
 
 game_introduction = "HELLO and welcome to the Monkey HEAR Monkey Doo game,, I ask questions and you answer by performing an action,,,its kind of like the hokee pokee but a bunch simpler. if you're ready to play, then say , Ready to play!"
 @app.route('/' , methods=['GET', 'POST'] )
 def index():
     global mode
     #mode= 'GAME'
+    print "REQUESTIS:" +request.method
     if request.method  =='POST':
         #print "printing JSON"
         data = request.get_json()
@@ -51,6 +53,8 @@ def index():
             result = urlparse.parse_qs(data)
             text = result['text'][0] #remove first char which is !
             print "RESULT FROM SLACK:" + str(text)
+            s = Settings()
+            print s.getWord()
             if mode == 'GAME':
                 game_do(text,None)
             else:
@@ -82,7 +86,9 @@ def trim(message):
 def getNextQuestion():
     global questions
     return questions.pop()
-
+def getNextGroupQuestion():
+    global group_questions
+    return group_questions.pop()
 def getNextAction():
     global actions
     if len(actions) ==0 :
@@ -133,7 +139,7 @@ def game_do(message, app_user):
             print "repeated command" +message
             return
         #current_question = question.next
-        current_group = getNextQuestion()
+        current_group = getNextGroupQuestion()
         current_action = getNextAction()
         commandNoRepeat(say, parseActionifExists(current_group.begin, current_action.begin*2))
     elif message[0].lower() == "a":
@@ -190,8 +196,8 @@ def message_do(message, app_user):
             #dic = {}
             questions = q.loadAllQuestions(None)
             #current_question = getNextQuestion()
-            #command(say, introduction )
-            #command(say, introduction2 )
+            command(say, introduction )
+            command(say, introduction2 )
             command(say, introduction3 )
             print "MY QUESTIONS ARE: " + str(questions)
             #command(say , current_question)
@@ -210,35 +216,35 @@ def message_do(message, app_user):
 
 
 
-        elif message[0].lower() == "q":
-            if isRepeat(message,command_history,4):
-                print "repeated command" +message
-                return
-            #current_question = question.next
-            current_question = getNextQuestion()
-            print "cur question:" + current_quesition.text()
-            commandNoRepeat(say, parseNameifExists(current_question.text))
-        elif message[0].lower() == "a":
-            if isRepeat(message,command_history,7):
-                print "repeated command" +message
-                return
-            response = parseNameifExists(current_question.response_positive)
-            if msg_len > 1 :
-                if message[1].lower() =='a':
-                    response = parseNameifExists(current_question.response_answer)
-                    print response, message
-                elif message[1].lower() =='n':
-                    response = parseNameifExists(current_question.response_negative)
-                elif message[1].lower() =='p':
-                    response = parseNameifExists(current_question.response_positive)
-            command(say, str(response))
-            print "ARGS ARE:" +args
-        elif message[0].lower() == "n":
-            if msg_len > 2:
-                global name
-                char = message.index(' ')
-                name = message[char:]
-                print "name is:" + name
+    elif message[0].lower() == "q":
+        if isRepeat(message,command_history,4):
+            print "repeated command" +message
+            return
+        #current_question = question.next
+        current_question = getNextQuestion()
+        #print "cur question:" + current_question.text()
+        commandNoRepeat(say, parseNameifExists(current_question.text))
+    elif message[0].lower() == "a":
+        if isRepeat(message,command_history,7):
+            print "repeated command" +message
+            return
+        response = parseNameifExists(current_question.response_positive)
+        if msg_len > 1 :
+            if message[1].lower() =='a':
+                response = parseNameifExists(current_question.response_answer)
+                print response, message
+            elif message[1].lower() =='n':
+                response = parseNameifExists(current_question.response_negative)
+            elif message[1].lower() =='p':
+                response = parseNameifExists(current_question.response_positive)
+        command(say, str(response))
+        print "ARGS ARE:" +args
+    elif message[0].lower() == "n":
+        if msg_len > 2:
+            global name
+            char = message.index(' ')
+            name = message[char:]
+            print "name is:" + name
 
     print "MESSAGE:" + msg
     result = message_common_do(message, app_user)
@@ -291,14 +297,14 @@ def message_common_do(message,app_user):
             commandNoRepeat(say, str(lastMessage[-1]))
             #return
 
-    elif message[0].lower() == "g":
-        response = "Well, That's all the time I have for today. it was nice to meet you %s, If you have any suggestions on how to make my programming better.\
-        please tell Robert when you can. "%name
-        if msg_len > 2:
-            message[1].lower() == 'g'
-            response = "That's all the questions I have. please let me know how my programming can be better"
+        elif message[0].lower() == "g":
+            response = "Well, That's all the time I have for today. it was nice to meet you %s, If you have any suggestions on how to make my programming better.\
+            please tell Robert when you can. "%name
+            if msg_len > 2:
+                message[1].lower() == 'g'
+                response = "That's all the questions I have. please let me know how my programming can be better"
 
-        command(say, str(response))
+            command(say, str(response))
 
     if app_user is None:
         send_message_to_SLACK(msg)
@@ -424,6 +430,6 @@ def get_emoticon(key):
 
 def __unicode__(self):
    return unicode(self.some_field) or u''
-
+app.wsgi_app = ProxyFix(app.wsgi_app)
 if __name__ == '__main__' :
     app.run(debug=True, host ='0.0.0.0')
